@@ -66,3 +66,14 @@ def get_summary(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found or no data")
     total_carbon = sum(a.carbon_kg for a in total)
     return {"user_id": user_id, "total_carbon_kg": total_carbon}
+@app.get("/")
+def home():
+    return {
+        "message": "🌿 Welcome to EcoLife Backend API!",
+        "endpoints": {
+            "Create User": "/users/?name=YourName",
+            "Log Activity": "/activities/?user_id=1&electricity_kwh=10&travel_km=5&food_kg=2",
+            "Get Summary": "/summary/{user_id}",
+            "Docs": "/docs"
+        }
+    }
