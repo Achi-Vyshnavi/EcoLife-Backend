@@ -5,15 +5,21 @@ from sqlalchemy.orm import sessionmaker, relationship, Session
 from dotenv import load_dotenv
 import os
 
+# Load environment variables
 load_dotenv()
 
+# Database connection
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ecolife.db")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
-app = FastAPI(title="EcoLife Carbon Tracker API")
+# Initialize FastAPI app
+app = FastAPI(
+    title="EcoLife Carbon Tracker API",
+    root_path="/"  # Helps Render correctly locate routes and OpenAPI schema
+)
 
 # Database Models
 class User(Base):
@@ -21,6 +27,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True)
     activities = relationship("Activity", back_populates="user")
+
 
 class Activity(Base):
     __tablename__ = "activities"
@@ -32,7 +39,10 @@ class Activity(Base):
     carbon_kg = Column(Float, default=0)
     user = relationship("User", back_populates="activities")
 
+
+# Create all tables
 Base.metadata.create_all(bind=engine)
+
 
 # Dependency
 def get_db():
@@ -41,6 +51,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 # Routes
 @app.post("/users/")
@@ -51,13 +62,27 @@ def create_user(name: str, db: Session = Depends(get_db)):
     db.refresh(user)
     return {"message": "User created", "user_id": user.id}
 
+
 @app.post("/activities/")
-def log_activity(user_id: int, electricity_kwh: float = 0, travel_km: float = 0, food_kg: float = 0, db: Session = Depends(get_db)):
+def log_activity(
+    user_id: int,
+    electricity_kwh: float = 0,
+    travel_km: float = 0,
+    food_kg: float = 0,
+    db: Session = Depends(get_db)
+):
     carbon = electricity_kwh * 0.7 + travel_km * 0.12 + food_kg * 2.5
-    activity = Activity(user_id=user_id, electricity_kwh=electricity_kwh, travel_km=travel_km, food_kg=food_kg, carbon_kg=carbon)
+    activity = Activity(
+        user_id=user_id,
+        electricity_kwh=electricity_kwh,
+        travel_km=travel_km,
+        food_kg=food_kg,
+        carbon_kg=carbon
+    )
     db.add(activity)
     db.commit()
     return {"message": "Activity logged", "carbon_generated_kg": carbon}
+
 
 @app.get("/summary/{user_id}")
 def get_summary(user_id: int, db: Session = Depends(get_db)):
@@ -66,6 +91,8 @@ def get_summary(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found or no data")
     total_carbon = sum(a.carbon_kg for a in total)
     return {"user_id": user_id, "total_carbon_kg": total_carbon}
+
+
 @app.get("/")
 def home():
     return {
@@ -77,3 +104,9 @@ def home():
             "Docs": "/docs"
         }
     }
+
+
+# Fix for /openapi.json not found on Render
+@app.get("/openapi.json")
+async def get_openapi():
+    return app.openapi()
